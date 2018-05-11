@@ -7,11 +7,18 @@
 __device__ float voxel_length = 20.0f;
 __device__ float eta = 0.1f;
 __device__ float delta = 200.0f;
+__device__ float omega_k = 0.5f;
+__device__ float omega_s = 0.2f;
+__device__ float epsilon = 0.00001f;
 
 __device__ int
 get_global_id(){
     return blockIdx.x * blockDim.x + threadIdx.x;
 }
+
+__device__ float
+length(float x, float y, float z){
+    return sqrtf(x * x + y * y + z * z);
 
 __device__ float
 distance(float * phi, float x, float y, float z, int width, int height){
@@ -144,7 +151,26 @@ nonrigid_kernel(
     v[id] -= eta * s * dy;
     w[id] -= eta * s * dz;
 
-    //TODO: level set energy and killing energy
+    // level set energy TODO
+    float sx;
+    float sy;
+    float sz;
+   
+    float l = length(dx, dy, dz);
+    float alpha = (l - 1) / (l + epsilon); 
+
+    u[id] -= eta * omega_s * sx * alpha;
+    v[id] -= eta * omega_s * sy * alpha;
+    w[id] -= eta * omega_s * sz * alpha;
+
+    // killing energy TODO
+    float kx;
+    float ky;
+    float kz;
+
+    u[id] -= eta * omega_k * kx * 2.0f;
+    v[id] -= eta * omega_k * ky * 2.0f;
+    w[id] -= eta * omega_k * kz * 2.0f;
 }
 
 
