@@ -1,6 +1,7 @@
 #include "fusion.h"
 
-int main(){
+int 
+main(){
     fusion_t f;
 
     // declare hyper-parameters for system

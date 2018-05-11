@@ -14,9 +14,23 @@ public:
     void fusion();
 
 private:
+    // deformation field
+    // N.B. pointers are device pointers
+    float * u;
+    float * v;
+    float * w;
+
+    // canonical sdf
+    // N.B. pointer is a device pointer
+    float * phi_global;
+
+    // properties of volume
+    int width, height, depth;
+    float voxel_length;
+
+    // private methods
     void load_filenames(std::vector<std::string> * fns, int frames);
     sdf_t get_sdf(std::string filename);
-    void initialise(sdf_t sdf);
     void update(bool is_rigid, sdf_t sdf);
 };
 

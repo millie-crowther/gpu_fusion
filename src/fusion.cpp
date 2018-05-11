@@ -13,7 +13,7 @@ fusion_t::fusion_t(){
 }
 
 fusion_t::~fusion_t(){
-    delete canon;
+
 }
 
 sdf_t 
@@ -64,11 +64,6 @@ fusion_t::update(bool is_rigid, sdf_t sdf){
     std::cout << msg << " transformation converged." << std::endl;
 }
 
-void 
-fusion_t::initialise(sdf_t sdf){
-
-}
-
 void
 fusion_t::fusion(){
     // load filenames
@@ -77,7 +72,6 @@ fusion_t::fusion(){
 
     // initalise deform field and canonical sdf
     sdf_t initial = get_sdf(filenames[0]);
-    initialise(initial);
 
     // perform main fusion
     auto start = std::chrono::system_clock::now();
