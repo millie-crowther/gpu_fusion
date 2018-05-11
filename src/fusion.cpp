@@ -30,6 +30,8 @@ void update_nonrigid(
     int width, int height, int depth
 );
 
+void cleanup(float * phi_global, float * u, float * v, float * w);
+
 fusion_t::fusion_t(min_params_t * ps){
     this->ps = ps;
 }
