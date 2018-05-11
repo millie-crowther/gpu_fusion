@@ -1,7 +1,6 @@
 #ifndef FUSION_H
 #define FUSION_H
 
-#include "canon_sdf.h"
 #include <string>
 #include <vector>
 
@@ -12,13 +11,13 @@ public:
     ~fusion_t();
     
     // main public method
-    void fusion(min_params_t * ps);
+    void fusion();
 
 private:
-    canon_sdf_t * canon;
-
     void load_filenames(std::vector<std::string> * fns, int frames);
-    sdf_t get_sdf(std::string filename, min_params_t * ps);
+    sdf_t get_sdf(std::string filename);
+    void initialise(sdf_t sdf);
+    void update(bool is_rigid, sdf_t sdf);
 };
 
 #endif

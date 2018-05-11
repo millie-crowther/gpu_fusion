@@ -4,6 +4,6 @@
 sudo apt-get install cimg-dev
 
 #
-# install OpenGL Mathematics
+# install cuda toolkit
 #
-sudo apt-get install libglm-dev
+sudo apt install nvidia-cuda-toolkit
