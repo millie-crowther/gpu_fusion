@@ -5,10 +5,37 @@
  */
 
 __device__ float voxel_length = 20.0f;
+__device__ float eta = 0.1f;
+__device__ float delta = 200.0f;
 
 __device__ int
 get_global_id(){
     return blockIdx.x * blockDim.x + threadIdx.x;
+}
+
+__device__ float
+distance(float * phi, float x, float y, float z, int width, int height){
+    if (
+	x < 0 || y < 0 ||
+	x / voxel_length <= width ||
+	y / voxel_length <= height
+    ){
+	return 1.0f;
+    }
+    int index = x / voxel_length + y / voxel_length * width;
+    float phi_true = phi[index] - z;
+
+    // divide by delta
+    float result = phi_true / delta;
+    
+    // clamp to range [-1..1]
+    if (result > 1.0f){
+	return 1.0f;
+    } else if (result < -1.0f){
+	return -1.0f;
+    } else {
+	return result;
+    }
 }
 
 __global__ void
@@ -24,10 +51,9 @@ init_kernel(
     }
 
     // get coordinates from id
+    int x  = (id % (width * height)) % width;
+    int y  = (id % (width * height)) / width;
     int z  = id / (width * height);
-    int xy = id - z * width * height;
-    int y  = xy / width;
-    int x  = xy % width;
 
     // sample sdf
     phi_global[id] = phi[x + y * width] - z * voxel_length;
@@ -47,12 +73,35 @@ rigid_kernel(
     }
 
     // get coordinates from id
+    int x  = (id % (width * height)) % width;
+    int y  = (id % (width * height)) / width;
     int z  = id / (width * height);
-    int xy = id - z * width * height;
-    int y  = xy / width;
-    int x  = xy % width;
+
+    float px = x * voxel_length;
+    float py = y * voxel_length;
+    float pz = z * voxel_length;
    
-    // 
+    // rigid update
+    float s = phi[x + y * height] - phi_global[id];
+    float dx = (
+        distance(phi, px + voxel_length, py, pz, width) - 
+	distance(phi, px - voxel_length, py, pz, width)
+    ) / (2.0f * voxel_length); 
+
+    float dy = (
+        distance(phi, px, py + voxel_length, pz, width) - 
+	distance(phi, px, py - voxel_length, pz, width)
+    ) / (2.0f * voxel_length); 
+
+    float dz = (
+        distance(phi, px, py, pz + voxel_length, width) - 
+	distance(phi, px, py, pz - voxel_length, width)
+    ) / (2.0f * voxel_length); 
+
+    // perform update
+    u[id] -= eta * s * dx;
+    v[id] -= eta * s * dy;
+    w[id] -= eta * s * dz;
 }
 
 __global__ void
@@ -69,11 +118,33 @@ nonrigid_kernel(
     }
 
     // get coordinates from id
+    int x  = (id % (width * height)) % width;
+    int y  = (id % (width * height)) / width;
     int z  = id / (width * height);
-    int xy = id - z * width * height;
-    int y  = xy / width;
-    int x  = xy % width;
 
+    // rigid update
+    float s = phi[x + y * height] - phi_global[id];
+    float dx = (
+        distance(phi, px + voxel_length, py, pz, width) - 
+	distance(phi, px - voxel_length, py, pz, width)
+    ) / (2.0f * voxel_length); 
+
+    float dy = (
+        distance(phi, px, py + voxel_length, pz, width) - 
+	distance(phi, px, py - voxel_length, pz, width)
+    ) / (2.0f * voxel_length); 
+
+    float dz = (
+        distance(phi, px, py, pz + voxel_length, width) - 
+	distance(phi, px, py, pz - voxel_length, width)
+    ) / (2.0f * voxel_length); 
+
+    // perform update
+    u[id] -= eta * s * dx;
+    v[id] -= eta * s * dy;
+    w[id] -= eta * s * dz;
+
+    //TODO: level set energy and killing energy
 }
 
 
