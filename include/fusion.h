@@ -22,7 +22,8 @@ private:
     float * w;
 
     // canonical sdf
-    // N.B. pointer is a device pointer
+    // N.B. pointers are device pointers
+    float * device_phi;
     float * phi_global;
 
     // hyper parameters

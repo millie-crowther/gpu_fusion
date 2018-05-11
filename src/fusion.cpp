@@ -10,14 +10,16 @@ using namespace cimg_library;
 
 // declare cuda functions
 void initialise(
-    float * phi, 
+    float * phi,
+    float ** device_phi, 
     float ** phi_global, 
     float ** u, float ** v, float ** w,
     int width, int height, int depth
 );
 
 void update_rigid(
-    float * phi, 
+    float * phi,
+    float * device_phi, 
     float * phi_global, 
     float * u, float * v, float * w,
     int width, int height, int depth
@@ -25,12 +27,13 @@ void update_rigid(
 
 void update_nonrigid(
     float * phi, 
+    float * device_phi,
     float * phi_global, 
     float * u, float * v, float * w,
     int width, int height, int depth
 );
 
-void cleanup(float * phi_global, float * u, float * v, float * w);
+void cleanup(float * phi_global, float * u, float * v, float * w, float * device_phi);
 
 fusion_t::fusion_t(min_params_t * ps){
     this->ps = ps;

@@ -18,6 +18,7 @@ include_directories(${INCLUDE_DIR})
 set(SOURCES
     ../src/main.cpp
     ../src/fusion.cpp
+    ../src/gpu_fusion.cu
 )
 
 add_executable(gpufusion ${SOURCES})
