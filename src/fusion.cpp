@@ -1,52 +1,69 @@
 #include "fusion.h"
 
-#include "min_params.h"
 #include <iostream>
 #include <chrono>
 #include <unistd.h>
 #include "CImg.h"
+#include <string>
 
 using namespace cimg_library;
 
-fusion_t::fusion_t(){
-    
+// declare cuda functions
+void initialise(
+    float * phi, 
+    float ** phi_global, 
+    float ** u, float ** v, float ** w,
+    int width, int height, int depth
+);
+
+void update_rigid(
+    float * phi, 
+    float * phi_global, 
+    float * u, float * v, float * w,
+    int width, int height, int depth
+);
+
+void update_nonrigid(
+    float * phi, 
+    float * phi_global, 
+    float * u, float * v, float * w,
+    int width, int height, int depth
+);
+
+fusion_t::fusion_t(min_params_t * ps){
+    this->ps = ps;
 }
 
 fusion_t::~fusion_t(){
 
 }
 
-sdf_t 
-fusion_t::get_sdf(std::string filename){
+void 
+fusion_t::get_sdf(int i, int * phi){
+    // get filename
+    std::string padding = i < 10 ? "0" : "";
+    if (i < 100){
+       padding = "0" + padding;
+    }
+    std::string filename = "../data/umbrella/depth/frame-000" + 
+	                   padding + std::to_string(i) + ".depth.png";
+
     std::cout << "loading depth map: " << filename << std::endl; 
 
+    // get image data
     CImg<unsigned short> image(filename.c_str());
 
-    std::vector<int> * ds = new std::vector<int>(image.width() * image.height());
+    int j = 0;
     for (int x = 0; x < image.width(); x++){
-        
         for (int y = 0; y < image.height(); y++){
-            int d = *image.data(x, y, 0, 0);
-            ds->push_back(d);
+            phi[j] = (int) *image.data(x, y);
+	    j++;
         }
-    }
-
-    return sdf_t(depths, image.width(), image.height());
-}
-
-void
-fusion_t::load_filenames(std::vector<std::string> * fns, int frames){
-    for (int i = 0; i < frames; i++){
-        std::string padding = i < 10 ? "0" : "";
-        if (i < 100){
-            padding = "0" + padding;
-        }
-        fns->push_back("../data/umbrella/depth/frame-000" + padding + std::to_string(i) + ".depth.png");
     }
 }
 
 void 
-fusion_t::update(bool is_rigid, sdf_t sdf){
+fusion_t::update(bool is_rigid, int * phi){
     std::string msg = is_rigid ? "Rigid" : "Non-rigid";
 
     bool should_update = true;
@@ -66,21 +83,18 @@ fusion_t::update(bool is_rigid, sdf_t sdf){
 
 void
 fusion_t::fusion(){
-    // load filenames
-    std::vector<std::string> filenames;
-    load_filenames(&filenames, ps->frames);
-
     // initalise deform field and canonical sdf
-    sdf_t initial = get_sdf(filenames[0]);
+    int phi[ps->width * ps->height];
+    get_sdf(0, phi);
 
     // perform main fusion
     auto start = std::chrono::system_clock::now();
-    for (int i = 1; i < filenames.size(); i++){
+    for (int i = 1; i < ps->frames; i++){
         std::cout << "Frame number: " << i << std::endl;     
 
-        sdf_t sdf = get_sdf(filenames[i]); 
-        update(true, sdf);
-	update(false, sdf);
+        get_sdf(i, phi); 
+        update(true, phi);
+	update(false, phi);
 
         std::cout << std::endl;
     } 

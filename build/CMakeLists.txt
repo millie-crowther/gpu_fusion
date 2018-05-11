@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
-set (CMAKE_CXX_STANDARD 11)
 
 # choose compiler
 set (CMAKE_CXX_COMPILER "/usr/bin/nvcc")
 #set (CMAKE_CXX_COMPILER "/usr/bin/g++")
 
-set (CMAKE_CXX_FLAGS "-pthread -lX11 -Dcimg_display=0")
+set (CMAKE_CXX_FLAGS "-lX11 -Dcimg_display=0")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 project(gpufusion CXX)
 
@@ -17,8 +17,6 @@ include_directories(${INCLUDE_DIR})
 
 set(SOURCES
     ../src/main.cpp
-    ../src/sdf.cpp
-    ../src/canon_sdf.cpp
     ../src/fusion.cpp
 )
 

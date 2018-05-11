@@ -3,11 +3,12 @@
 
 #include <string>
 #include <vector>
+#include "min_params.h"
 
 class fusion_t {
 public:
     // constructors and destructors
-    fusion_t();
+    fusion_t(min_params_t * ps);
     ~fusion_t();
     
     // main public method
@@ -24,14 +25,12 @@ private:
     // N.B. pointer is a device pointer
     float * phi_global;
 
-    // properties of volume
-    int width, height, depth;
-    float voxel_length;
+    // hyper parameters
+    min_params_t * ps;
 
     // private methods
-    void load_filenames(std::vector<std::string> * fns, int frames);
-    sdf_t get_sdf(std::string filename);
-    void update(bool is_rigid, sdf_t sdf);
+    void get_sdf(int i, int * phi);
+    void update(bool is_rigid, int * phi);
 };
 
 #endif
