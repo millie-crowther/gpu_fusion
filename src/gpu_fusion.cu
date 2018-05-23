@@ -17,7 +17,7 @@ __device__ float sdf_eta = 100.0f;
 
 __device__ int3
 get_global_id(){
-    //TODO
+    return make_int3(blockIdx.x, blockIdx.y, blockIdx.z);
 }
 
 __device__ float
@@ -33,17 +33,33 @@ canon_distance(float2 * phi_global, int3 v, int3 dim){
     }
 }
 
+__device__ float3
+deformation(float3 * psi, int3 p, int3 dim){
+    if (
+        p.x < 0 || p.y < 0 || p.z < 0 ||
+        p.x >= dim.x || p.y >= dim.y || p.z >= dim.z
+    ){
+        return make_float3(0);
+    } else {
+        int index = p.x + p.y * dim.x + p.z * dim.x * dim.y;
+        return psi[index];
+    }
+}
+
 __device__ float
-phi_true(float * phi, int3 v, int3 dim){
-    // TODO: add deformation, and interpolation
+phi_true(float * phi, float3 * psi, int3 x, int3 dim){
+    // TODO: interpolation
+    float3 x1 = make_float3(x.x, x.y, x.z) + make_float3(0.5f);
+    float3 v = x1 + deformation(psi, x1, dim); 
 
     int x = v.x;
     int y = v.y;
+    int z = v.z
    
     if (x < 0 || y < 0 || x >= dim.x || y >= dim.y){
         return delta; 
     } else {
-        return phi[x + y * dim.x] - v.z;
+        return phi[x + y * dim.x] - z;
     } 
 }
 
@@ -64,29 +80,24 @@ distance(float * phi, float3 * psi, int3 v, int3 dim){
 
 __device__ float3
 distance_gradient(float * phi, float3 * psi, int3 v, int3 dim){
-    int d = 1;
     return make_float3(
-        ( 
-            distance(phi, psi, v + make_int3(l, 0, 0), dim) - 
-            distance(phi, psi, v - make_int3(l, 0, 0), dim)
-        ) / (2 * d),
+        ( distance(phi, psi, v + make_int3(1, 0, 0), dim) - 
+          distance(phi, psi, v - make_int3(1, 0, 0), dim)
+        ) / 2.0f,
         
-        (
-            distance(phi, psi, v + make_int3(0, l, 0), dim) - 
-            distance(phi, psi, v - make_int3(0, l, 0), dim)
-        ) / (2 * d),
+        ( distance(phi, psi, v + make_int3(0, 1, 0), dim) - 
+          distance(phi, psi, v - make_int3(0, 1, 0), dim)
+        ) / 2.0f,
         
-        (
-            distance(phi, psi, v + make_int3(0, 0, l), dim) - 
-            distance(phi, psi, v - make_int3(0, 0, l), dim)
-        ) / (2 * d)
+        ( distance(phi, psi, v + make_int3(0, 0, 1), dim) - 
+          distance(phi, psi, v - make_int3(0, 0, 1), dim)
+        ) / 2.0f
     );
 }
 
 __device__ void
 sample_phi(float * phi, float2 ** phi_global, int3 v, int3 dim){
-    float phi_t = phi_true(phi, v, dim);
-    if (phi_t > -sdf_eta){
+    if (phi_true(phi, v, dim) > -sdf_eta){
         int index = (v.x + v.y * dim.x + v.z * dim.x * dim.y);
         phi_global[index] += make_float2(distance(phi, psi, v, dim), 1.0f);
     }
@@ -97,13 +108,81 @@ data_energy(float * phi, float3 * psi, float2 * phi_global, int3 dim, float3 gra
     return grad * (distance(phi, psi, v, dim) - canon_distance(phi_global, v, dim));
 }
 
+__device__ float
+hessian_uvw(float3 * psi, int3 v, int3 dim, int x, int y, int elem){
+    int3 axes[3];
+    axes[0] = make_int3(1, 0, 0);
+    axes[1] = make_int3(0, 1, 0);
+    axes[2] = make_int3(0, 0, 1);
+
+    float3 p1 = deformation(psi, v + axes[x] + axes[y], dim); 
+    float3 p2 = deformation(psi, v + axes[x] - axes[y], dim); 
+    float3 p3 = deformation(psi, v - axes[x] + axes[y], dim); 
+    float3 p4 = deformation(psi, v - axes[x] - axes[y], dim); 
+
+    float p = elem == 0 ? p1.x : (elem == 1 ? p1.y : p1.z);
+    float q = elem == 0 ? p2.x : (elem == 1 ? p2.y : p2.z);
+    float r = elem == 0 ? p3.x : (elem == 1 ? p3.y : p3.z);
+    float s = elem == 0 ? p4.x : (elem == 1 ? p4.y : p4.z);
+    
+    float t = (p - q) / (2 * voxel_length);
+    float u = (r - s) / (2 * voxel_length);
+    return (t - u) / (2 * voxel_length); 
+}
+
+__device__ float
+jacobian(float3 * psi, int3 v, int3 dim, int x, int y){
+    int3 axes[3];
+    axes[0] = make_int3(1, 0, 0);
+    axes[1] = make_int3(0, 1, 0);
+    axes[2] = make_int3(0, 0, 1);
+
+    float3 p = deformation(psi, v + axes[x], dim); 
+    float3 q = deformation(psi, v - axes[x], dim); 
+    float3 result = (p - q) / (2.0f * voxel_length);
+    if (y == 0){
+        return result.x;
+    } else if (y == 1){
+        return result.y;
+    } else {
+        return result.z;
+    }
+}
+
 __device__ float3
 killing_energy(float3 * psi, int3 v, int3 dim){
     float3 result = make_float3(0.0f);
     for (int i = 0; i < 9; i++){
-
+         int jx = i / 3;
+         int jy = i % 3;
+         float j = jacobian(psi, v, dim, jy, jx) + gamma * jacobian(psi, v, dim, kx, jy);
+         
+         int hx = i % 3;
+         int elem = i / 3;
+         result += make_float3(
+             hessian_uvw(psi, v, dim, hx, 0, elem) * j, 
+             hessian_uvw(psi, v, dim, hx, 1, elem) * j, 
+             hessian_uvw(psi, v, dim, hx, 2, elem) * j
+         );
     }
     return result * 2.0f;
+}
+
+__device__ float
+hessian_d(float * phi, float3 * psi, int3 v, int3 dim, int x, int y){
+    int3 axes[3];
+    axes[0] = make_int3(1, 0, 0);
+    axes[1] = make_int3(0, 1, 0);
+    axes[2] = make_int3(0, 0, 1);
+
+    float p = distance(phi, psi, v + axes[x] + axes[y], dim);
+    float q = distance(phi, psi, v + axes[x] - axes[y], dim);
+    float r = distance(phi, psi, v - axes[x] + axes[y], dim);
+    float s = distance(phi, psi, v - axes[x] - axes[y], dim);
+
+    float t = (p - q) / 2.0f;
+    float u = (r - s) / 2.0f;
+    return (t - u) / 2.0f; 
 }
 
 __device__ float3
@@ -111,9 +190,15 @@ level_set_energy(float * phi, float3 * psi, int3 v, int3 dim, float3 grad){
     float s = (length(grad) - 1) / (length(grad) + epsilon);
     
     float3 h;
-    h.x = grad.x;
-    h.y = grad.y;
-    h.z = grad.z;
+    h.x = hessian_d(phi, psi, v, dim, 0, 0) * grad.x +
+          hessian_d(phi, psi, v, dim, 1, 0) * grad.y +
+          hessian_d(phi, psi, v, dim, 2, 0) * grad.z +
+    h.y = hessian_d(phi, psi, v, dim, 0, 1) * grad.x +
+          hessian_d(phi, psi, v, dim, 1, 1) * grad.y +
+          hessian_d(phi, psi, v, dim, 2, 1) * grad.z +
+    h.z = hessian_d(phi, psi, v, dim, 0, 2) * grad.x +
+          hessian_d(phi, psi, v, dim, 1, 2) * grad.y +
+          hessian_d(phi, psi, v, dim, 2, 2) * grad.z +
     return h * s;
 }
 
@@ -199,8 +284,8 @@ nonrigid_kernel(float * phi, float * phi_global, float3 * psi, int3 dim){
 /*
    Host code
  */
-int grid_size = 512; // TODO
-int block_size = 512; // TODO
+dim3 grid_size = (1, 1, 1); 
+dim3 block_size = (80, 60, 200);
 
 void
 initialise(float * phi, float ** device_phi, float2 ** phi_global, float3 ** psi, int3 dim){
