@@ -11,11 +11,9 @@ using namespace cimg_library;
 
 // declare cuda functions
 void initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, int3 dim);
-void update_rigid(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim);
-void update_nonrigid(int * device_phi, float2 * phi_global, float3 * psi, int3 dim);
+void estimate_psi(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim);
 void cleanup(float2 * phi_global, float3 * psi, int * device_phi);
 void get_canon(float2 * host_phi_global, float2 * device_phi_global, int size);
- 
 
 fusion_t::fusion_t(min_params_t * ps){
     this->ps = ps;
@@ -52,30 +50,26 @@ fusion_t::get_sdf(int i, int * phi){
 void
 fusion_t::fusion(){
     // initalise deform field and canonical sdf
-    int phi[ps->width * ps->height];
+    int * phi = new int[ps->width * ps->height];
     get_sdf(0, phi);
  
     // device pointers
     int3 dim = make_int3(ps->width, ps->height, ps->depth) / ps->voxel_length; 
+    std::cout << dim.x * dim.y * dim.z << std::endl;
 
     // store canon sdf data
-    float2 host_phi_global[dim.x * dim.y * dim.z];
+    float2 * host_phi_global = new float2[dim.x * dim.y * dim.z];
 
     initialise(phi, &device_phi, &phi_global, &psi, dim);
-
+    get_canon(host_phi_global, phi_global, dim.x * dim.y * dim.z);
+ 
     // perform main fusion
     auto start = std::chrono::system_clock::now();
     for (int i = 1; i < ps->frames; i++){
         std::cout << "Frame number: " << i << std::endl;     
 
-        get_sdf(i, phi); 
-	std::cout << "Performing rigid deformation..." << std::endl;
-	update_rigid(phi, device_phi, phi_global, psi, dim);
-	std::cout << "Rigid deformation converged." << std::endl;
-
-	std::cout << "Performing non-rigid deformation..." << std::endl;
-	update_nonrigid(device_phi, phi_global, psi, dim);
-	std::cout << "Non-rigid deformation converged." << std::endl;
+        get_sdf(i, phi);
+	estimate_psi(phi, device_phi, phi_global, psi, dim);
 
 	if (i % 30 == 0){
             std::cout << "Storing canonical SDF data..." << std::endl;
@@ -92,5 +86,8 @@ fusion_t::fusion(){
     std::cout << "Total time elapsed: " << t << " seconds." << std::endl;
     std::cout << "Average framerate: " << ps->frames / t << " frames per second." << std::endl;
 
+    delete[] phi;
+    delete[] host_phi_global;
     cleanup(phi_global, psi, device_phi);
+    
 }

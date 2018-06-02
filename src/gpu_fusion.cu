@@ -296,16 +296,9 @@ initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, in
 }
 
 void 
-update_rigid(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
-    // uploads image to gpu and does rigid update
+estimate_psi(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
     int img_size = sizeof(int) * dim.x * dim.y;
     cudaMemcpy(device_phi, phi, img_size, cudaMemcpyHostToDevice);
-    estimate_psi_kernel<<<grid_size, block_size>>>(true, device_phi, phi_global, psi, dim);
-}
-
-void 
-update_nonrigid(int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
-    // assumes that the image has already been uploaded by the rigid update
     estimate_psi_kernel<<<grid_size, block_size>>>(false, device_phi, phi_global, psi, dim);
 }
 
