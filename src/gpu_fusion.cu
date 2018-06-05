@@ -238,9 +238,7 @@ init_kernel(int * phi, float3 * psi, float2 * phi_global, int3 dim){
 }
 
 __global__ void
-estimate_psi_kernel(bool is_rigid, int * phi, float2 * phi_global, float3 * psi, int3 dim){
-    // TODO: sync
-
+estimate_psi_kernel(int * phi, float2 * phi_global, float3 * psi, int3 dim){
     int3 id = get_global_id();
     if (
         id.x < 2 || id.y < 2 || id.z < 2 ||
@@ -248,16 +246,11 @@ estimate_psi_kernel(bool is_rigid, int * phi, float2 * phi_global, float3 * psi,
     ){
         return;
     }
-     
+    
+ 
     bool quit = false;
     while (!quit){
-        float3 e;
-	if (is_rigid){
-            float3 grad = distance_gradient(phi, psi, id, dim);
-	    e = data_energy(phi, psi, phi_global, id, dim, grad);
-	} else {
-	    e = energy(phi, phi_global, psi, id, dim);
-	}
+        float3 e = energy(phi, phi_global, psi, id, dim);
 
         if (length(e) <= threshold){
             quit = true;
@@ -291,6 +284,11 @@ initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, in
     cudaMemcpy(*device_phi, phi, img_size, cudaMemcpyHostToDevice);
     init_kernel<<<grid_size, block_size>>>(*device_phi, *psi, *phi_global, dim);
 
+    cudaError e = cudaGetLastError();
+    if (e != cudaSuccess){
+        printf("error: %d\n", e);
+    }
+
     // set deform field to zero
     cudaMemset(*psi, 0, psi_size);
 }
@@ -299,7 +297,7 @@ void
 estimate_psi(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
     int img_size = sizeof(int) * dim.x * dim.y;
     cudaMemcpy(device_phi, phi, img_size, cudaMemcpyHostToDevice);
-    estimate_psi_kernel<<<grid_size, block_size>>>(false, device_phi, phi_global, psi, dim);
+    estimate_psi_kernel<<<grid_size, block_size>>>(device_phi, phi_global, psi, dim);
 }
 
 void

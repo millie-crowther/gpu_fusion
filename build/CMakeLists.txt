@@ -20,6 +20,7 @@ set(SOURCES
     ../src/gpu_fusion.cu
     ../src/fusion.cpp
     ../src/main.cpp
+    ../src/marching_cubes.cpp
 )
 
 # Pass options to NVCC

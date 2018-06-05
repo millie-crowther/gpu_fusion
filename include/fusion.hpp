@@ -25,8 +25,7 @@ private:
     min_params_t * ps;
 
     // private methods
-    void get_sdf(int i, int * phi);
-    void update(bool is_rigid, int * phi);
+    void get_sdf(int i, int * phi, int3 dim);
 };
 
 #endif

@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include "CImg.h"
 
+#include "marching_cubes.hpp"
+
 #include "cutil_math.hpp"
 
 using namespace cimg_library;
@@ -24,7 +26,7 @@ fusion_t::~fusion_t(){
 }
 
 void 
-fusion_t::get_sdf(int i, int * phi){
+fusion_t::get_sdf(int i, int * phi, int3 dim){
     // get filename
     std::string padding = i < 10 ? "0" : "";
     if (i < 100){
@@ -38,42 +40,40 @@ fusion_t::get_sdf(int i, int * phi){
     // get image data
     CImg<unsigned short> image(filename.c_str());
 
-    int j = 0;
     for (int x = 0; x < image.width(); x++){
         for (int y = 0; y < image.height(); y++){
-            phi[j] = (int) *image.data(x, y);
-	    j++;
+            phi[x + y * dim.x] = (int) *image.data(x, y);
         }
     }
 }
 
 void
 fusion_t::fusion(){
+    int3 dim = make_int3(ps->width, ps->height, ps->depth) / ps->voxel_length; 
+    
     // initalise deform field and canonical sdf
     int * phi = new int[ps->width * ps->height];
-    get_sdf(0, phi);
+    get_sdf(0, phi, dim);
  
-    // device pointers
-    int3 dim = make_int3(ps->width, ps->height, ps->depth) / ps->voxel_length; 
-    std::cout << dim.x * dim.y * dim.z << std::endl;
-
     // store canon sdf data
     float2 * host_phi_global = new float2[dim.x * dim.y * dim.z];
 
     initialise(phi, &device_phi, &phi_global, &psi, dim);
     get_canon(host_phi_global, phi_global, dim.x * dim.y * dim.z);
+    mc::save_mesh(host_phi_global, dim, ps->voxel_length, "umbrella", 0);
  
     // perform main fusion
     auto start = std::chrono::system_clock::now();
     for (int i = 1; i < ps->frames; i++){
         std::cout << "Frame number: " << i << std::endl;     
 
-        get_sdf(i, phi);
+        get_sdf(i, phi, dim);
 	estimate_psi(phi, device_phi, phi_global, psi, dim);
 
 	if (i % 30 == 0){
             std::cout << "Storing canonical SDF data..." << std::endl;
 	    get_canon(host_phi_global, phi_global, dim.x * dim.y * dim.z);
+            mc::save_mesh(host_phi_global, dim, ps->voxel_length, "umbrella", i);
 	}
 
         std::cout << std::endl;
