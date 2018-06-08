@@ -17,8 +17,14 @@ __constant__ float threshold = 0.1f;
 __constant__ float sdf_eta = 100.0f;
 
 __device__ int3
-get_global_id(){
-    return make_int3(blockIdx.x, blockIdx.y, blockIdx.z);
+get_global_id(int3 dim){
+    int id = threadIdx.x + blockIdx.x * blockDim.x;
+    int z = id / (dim.x * dim.y);
+    int xy = id % (dim.x * dim.y);
+    int x = xy % dim.x;
+    int y = xy / dim.x;
+//    if (x < 10 && y < 10 && z % 10 == 0) printf("beep %d\n", z);
+    return make_int3(x, y, z);
 }
 
 __device__ float
@@ -54,7 +60,9 @@ __device__ int
 phi_true(int * phi, float3 * psi, int3 v_grid, int3 dim){
     // TODO: interpolate
     float3 v = make_float3(v_grid.x, v_grid.y, v_grid.z) + make_float3(0.5f);
+    v *= voxel_length;
     v += deformation(psi, v_grid, dim); 
+    v /= voxel_length;
 
     int x = v.x;
     int y = v.y;
@@ -225,7 +233,7 @@ energy(int * phi, float2 * phi_global, float3 * psi, int3 v, int3 dim){
 
 __global__ void
 init_kernel(int * phi, float3 * psi, float2 * phi_global, int3 dim){
-    int3 id = get_global_id();
+    int3 id = get_global_id(dim);
     if (
         id.x < 0 || id.y < 0 || id.z < 0 ||
         id.x >= dim.x || id.y >= dim.y || id.z >= dim.z 
@@ -239,14 +247,17 @@ init_kernel(int * phi, float3 * psi, float2 * phi_global, int3 dim){
 
 __global__ void
 estimate_psi_kernel(int * phi, float2 * phi_global, float3 * psi, int3 dim){
-    int3 id = get_global_id();
+    int3 id = get_global_id(dim);
+
+    if (id.x % 10 == 0 && id.y % 10 == 0){
+        printf("id: %d, %d, %d\n", id.x, id.y, id.z);
+    }
     if (
         id.x < 2 || id.y < 2 || id.z < 2 ||
         id.x >= dim.x - 2 || id.y >= dim.y - 2 || id.z >= dim.z - 2
     ){
         return;
     }
-    
  
     bool quit = false;
     while (!quit){
@@ -266,11 +277,12 @@ estimate_psi_kernel(int * phi, float2 * phi_global, float3 * psi, int3 dim){
 /*
    Host code
  */
-dim3 grid_size = (1, 1, 1); 
-dim3 block_size = (80, 60, 200);
+int grid_size = 1800; 
+int block_size = 512;
 
 void
 initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, int3 dim){
+    printf("dim %d, %d, %d\n", dim.x, dim.y, dim.z);
     int img_size   = sizeof(int)  * dim.x * dim.y;
     int phi_g_size = sizeof(float2) * dim.x * dim.y * dim.z;
     int psi_size   = sizeof(float3) * dim.x * dim.y * dim.z;
@@ -284,11 +296,6 @@ initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, in
     cudaMemcpy(*device_phi, phi, img_size, cudaMemcpyHostToDevice);
     init_kernel<<<grid_size, block_size>>>(*device_phi, *psi, *phi_global, dim);
 
-    cudaError e = cudaGetLastError();
-    if (e != cudaSuccess){
-        printf("error: %d\n", e);
-    }
-
     // set deform field to zero
     cudaMemset(*psi, 0, psi_size);
 }
@@ -296,8 +303,15 @@ initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, in
 void 
 estimate_psi(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
     int img_size = sizeof(int) * dim.x * dim.y;
+    printf("here!\n");
     cudaMemcpy(device_phi, phi, img_size, cudaMemcpyHostToDevice);
+    printf("dim %d, %d, %d\n", dim.x, dim.y, dim.z);
     estimate_psi_kernel<<<grid_size, block_size>>>(device_phi, phi_global, psi, dim);
+
+    cudaError e = cudaGetLastError();
+    if (e != cudaSuccess){
+        printf("error: %d\n", e);
+    }
 }
 
 void
