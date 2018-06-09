@@ -248,10 +248,6 @@ init_kernel(int * phi, float3 * psi, float2 * phi_global, int3 dim){
 __global__ void
 estimate_psi_kernel(int * phi, float2 * phi_global, float3 * psi, int3 dim){
     int3 id = get_global_id(dim);
-
-    if (id.x % 10 == 0 && id.y % 10 == 0){
-        printf("id: %d, %d, %d\n", id.x, id.y, id.z);
-    }
     if (
         id.x < 2 || id.y < 2 || id.z < 2 ||
         id.x >= dim.x - 2 || id.y >= dim.y - 2 || id.z >= dim.z - 2
@@ -260,7 +256,8 @@ estimate_psi_kernel(int * phi, float2 * phi_global, float3 * psi, int3 dim){
     }
  
     bool quit = false;
-    while (!quit){
+    int max_iterations = 32;
+    for (int i = 0; !quit && i < max_iterations; i++){
         float3 e = energy(phi, phi_global, psi, id, dim);
 
         if (length(e) <= threshold){
@@ -282,7 +279,7 @@ int block_size = 512;
 
 void
 initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, int3 dim){
-    printf("dim %d, %d, %d\n", dim.x, dim.y, dim.z);
+   // printf("dim %d, %d, %d\n", dim.x, dim.y, dim.z);
     int img_size   = sizeof(int)  * dim.x * dim.y;
     int phi_g_size = sizeof(float2) * dim.x * dim.y * dim.z;
     int psi_size   = sizeof(float3) * dim.x * dim.y * dim.z;
@@ -303,9 +300,7 @@ initialise(int * phi, int ** device_phi, float2 ** phi_global, float3 ** psi, in
 void 
 estimate_psi(int * phi, int * device_phi, float2 * phi_global, float3 * psi, int3 dim){
     int img_size = sizeof(int) * dim.x * dim.y;
-    printf("here!\n");
     cudaMemcpy(device_phi, phi, img_size, cudaMemcpyHostToDevice);
-    printf("dim %d, %d, %d\n", dim.x, dim.y, dim.z);
     estimate_psi_kernel<<<grid_size, block_size>>>(device_phi, phi_global, psi, dim);
 
     cudaError e = cudaGetLastError();
